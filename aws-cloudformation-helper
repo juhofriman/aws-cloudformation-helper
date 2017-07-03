@@ -1,0 +1,69 @@
+#! /bin/bash
+
+red=`tput setaf 1`
+green=`tput setaf 2`
+reset=`tput sgr0`
+
+if [ -z "$1" ];  then
+    echo "Pass operation as an argument"
+    echo "create|update|delete"
+    exit 1
+fi
+
+OPERATION=$1
+
+if [ "$OPERATION" != "create" ] && [ "$OPERATION" != "update" ] && [ "$OPERATION" != "delete" ] ; then
+   echo "Unkown operation $OPERATION"
+   echo "create|update|delete"
+   exit 1
+fi
+
+if [ -z "$2" ];  then
+    echo "Pass cloudformation template file as an second argument"
+    exit 1
+fi
+
+if [ "$3" == "iam" ];  then
+    CAPABILITIES="--capabilities CAPABILITY_IAM"
+fi
+
+if [ ! -d ".git" ]; then
+    echo "Not a  git repository"
+    exit 1
+fi
+
+REMOTE_NAME=`basename $(git remote show -n origin | grep Push | cut -d: -f2-)`
+CLOUDFORMATION_FILE_PATH=$2
+CLOUDFORMATION_FILE=$(basename $CLOUDFORMATION_FILE_PATH)
+CLOUDFORMATION_STACK_SUFFIX=${CLOUDFORMATION_FILE%.*}
+STACK_NAME=$REMOTE_NAME--$CLOUDFORMATION_STACK_SUFFIX
+
+
+case $OPERATION in
+    "create" )
+        COMMAND="aws cloudformation create-stack --stack-name $STACK_NAME --template-body fileb://$CLOUDFORMATION_FILE_PATH $CAPABILITIES"
+        ;;
+    "update" )
+        COMMAND="aws cloudformation update-stack --stack-name $STACK_NAME --template-body fileb://$CLOUDFORMATION_FILE_PATH $CAPABILITIES"
+        ;;
+    "delete" )
+        COMMAND="aws cloudformation delete-stack --stack-name $STACK_NAME $CAPABILITIES"
+        ;;
+esac
+
+echo "${green}PROFILE: ${red}$AWS_DEFAULT_PROFILE${reset}"
+echo "${green}STACK_NAME: ${red}$STACK_NAME${reset}"
+echo "${green}TEMPLATE: ${red}$CLOUDFORMATION_FILE_PATH${reset}"
+
+
+echo "Will run this:"
+echo "   $COMMAND"
+
+echo
+read -p "Are you sure? [y|Y]" -n 1 -r
+echo    # (optional) move to a new line
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    $COMMAND
+else
+    echo "Not running cloudformation"
+fi
